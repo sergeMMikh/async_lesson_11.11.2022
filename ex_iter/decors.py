@@ -1,9 +1,15 @@
+from debag_tools import debag_decorator
+
+@debag_decorator #foo = debag_decorator(foo)
 def foo():
-    print('foo was')
+    x = 5
+    # print('foo was called')
+    return x
+
+@debag_decorator #foo2 = debag_decorator(foo2)
+def foo2():
+    return 4
 
 
-x = foo
-
-print(x)
-
-x()
+foo()
+foo2()
