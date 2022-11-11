@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>list of projects</title>
+</head>
+<body>
+    <h1>list of projects</h1>
+    {% for prod in products %}
+    <h2>{{ prod.name }}</h2>
+    <p>{{ prog.description }}</p>
+    <h3>{{ prod.price }}</h3>
+    <p>------------------------------------</p>
+    {% endfor%}
+
+    <a href="{% url 'index' %}"><button>To main</a>
+</body>
+</html>
