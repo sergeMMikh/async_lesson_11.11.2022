@@ -3,9 +3,22 @@ import datetime
 from pprint import pprint
 from aiohttp import ClientSession
 from more_itertools import chunked
-
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy import Column, Integer, JSON
+from sqlalchemy.ext.declarative import declarative_base
 
 CHUNK_SIZE = 10
+
+PG_DSN = DSN = 'postgresql+asyncpg://app:secret@localhost:5431/app'
+engine = create_async_engine(PG_DSN)
+Base = declarative_base()
+
+
+class People(Base):
+    id = Column(Integer, primary_key=True)
+    json = Column(JSON)
+
 
 async def get_person(people_id: int, session: ClientSession):
     print(f'start {people_id}')
@@ -19,6 +32,13 @@ async def get_person(people_id: int, session: ClientSession):
 
 
 async def get_people():
+    async with engine.begin() as connection:
+        await connection.urn_sync(Base.metadata.create_all)
+        await connection.commit()
+
+    Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
     async with ClientSession() as session:
         for chunk in chunked(range(1, 80), CHUNK_SIZE):
             coroutines = [get_person(people_id=i, session=session) for i in chunk]
