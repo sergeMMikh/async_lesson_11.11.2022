@@ -27,6 +27,7 @@ async def chunked_async(async_iter, size):
 PG_DSN = DSN = 'postgresql+asyncpg://app:secret@localhost:5431/app'
 engine = create_async_engine(PG_DSN)
 Base = declarative_base()
+Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 class People(Base):
@@ -57,18 +58,25 @@ async def get_people():
                 yield item
 
 
+async def insert_people(people_chunk):
+    async with Session() as session:
+        session.add_all([People(json=item) for item in people_chunk])
+        await session.commit()
+
+    ...
+
+
 async def main():
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
         await connection.commit()
 
-    Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
     async for chunk in chunked_async(get_people(), CHUNK_SIZE):
-        async  with Session() as session:
-            for item in chunk:
-                session.add(People(json=item))
-                await session.commit()
+        task = asyncio.create_task(insert_people(chunk))
+
+    tasks = set(asyncio.all_tasks()) - {asyncio.current_task()}
+    for task_ in tasks:
+        await task_
 
 
 start = datetime.datetime.now()
