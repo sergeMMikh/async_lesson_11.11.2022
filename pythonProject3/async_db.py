@@ -10,12 +10,28 @@ from sqlalchemy.ext.declarative import declarative_base
 
 CHUNK_SIZE = 10
 
+
+async def chunked_async(async_iter, size):
+    buffer = []
+    while True:
+        try:
+            item = await async_iter.__anext__()
+        except StopAsyncIteration:
+            break
+        buffer.append(item)
+        if len(buffer) == size:
+            yield buffer
+            buffer = []
+
+
 PG_DSN = DSN = 'postgresql+asyncpg://app:secret@localhost:5431/app'
 engine = create_async_engine(PG_DSN)
 Base = declarative_base()
 
 
 class People(Base):
+    __tablename__ = 'people'
+
     id = Column(Integer, primary_key=True)
     json = Column(JSON)
 
@@ -32,13 +48,6 @@ async def get_person(people_id: int, session: ClientSession):
 
 
 async def get_people():
-    async with engine.begin() as connection:
-        await connection.urn_sync(Base.metadata.create_all)
-        await connection.commit()
-
-    Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-
     async with ClientSession() as session:
         for chunk in chunked(range(1, 80), CHUNK_SIZE):
             coroutines = [get_person(people_id=i, session=session) for i in chunk]
@@ -49,8 +58,17 @@ async def get_people():
 
 
 async def main():
-    async for item in get_people():
-        pprint(item)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+        await connection.commit()
+
+    Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async for chunk in chunked_async(get_people(), CHUNK_SIZE):
+        async  with Session() as session:
+            for item in chunk:
+                session.add(People(json=item))
+                await session.commit()
 
 
 start = datetime.datetime.now()
